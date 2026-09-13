@@ -1,15 +1,25 @@
 import sys
 import os
 import re
-from terminal.qt_compat import (
-    Qt, QSize, QSocketNotifier, Signal, QObject,
-    QFont, QColor, QTextCursor, QIcon, QKeySequence, QShortcut,
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QLineEdit, QFrame, QScrollArea, QApplication, QTimer
-)
-
-from terminal.pty_manager import PTYManager
-from terminal.command_engine import CommandEngine
+import html
+try:
+    from terminal.qt_compat import (
+        Qt, QSize, QSocketNotifier, Signal, QObject, QTimer,
+        QFont, QColor, QTextCursor, QIcon, QKeySequence, QShortcut,
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+        QPushButton, QTextEdit, QLineEdit, QFrame, QScrollArea, QApplication
+    )
+    from terminal.pty_manager import PTYManager
+    from terminal.command_engine import CommandEngine
+except ImportError:
+    from qt_compat import (
+        Qt, QSize, QSocketNotifier, Signal, QObject, QTimer,
+        QFont, QColor, QTextCursor, QIcon, QKeySequence, QShortcut,
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+        QPushButton, QTextEdit, QLineEdit, QFrame, QScrollArea, QApplication
+    )
+    from pty_manager import PTYManager
+    from command_engine import CommandEngine
 
 class CommandLineEdit(QLineEdit):
     """
@@ -31,6 +41,104 @@ class CommandLineEdit(QLineEdit):
         super().keyPressEvent(event)
 
 
+def parse_ansi_and_clean_output(text: str) -> str:
+    """
+    1. Removes all non-printing CSI/control sequences (\x1b[?...h, \x1b[?...l, \x1b[K, \x1b[2J, \x1b]...BEL, etc.).
+    2. Consumes FULL ANSI escape sequences completely so no '[36m', '[?2004h', '[0m' leakage occurs.
+    3. Translates SGR color codes (folders=cyan #8be9fd, executables=green #50fa7b, text/source=purple #d8b4fe) into clean HTML spans.
+    4. Strips unprintable control bytes (\r, \x00-\x08, \x0B, \x0C, \x0E-\x1F, \x7F).
+    """
+    if not text:
+        return ""
+
+    # Normalize line endings and eliminate raw \r control bytes
+    text = text.replace('\r\n', '\n').replace('\r', '')
+
+    # 1. Consume & Strip Operating System Commands (OSC) like \x1b]0;... \x07
+    text = re.sub(r'\x1b\][^\x07\x1b]*(\x07|\x1b\\)', '', text)
+
+    # 2. Consume & Strip Non-SGR CSI Sequences (e.g. \x1b[?2004h, \x1b[?1h, \x1b[K, \x1b[2J, \x1b[?25h)
+    text = re.sub(r'\x1b\[\??[0-9;]*[a-ln-zA-Z]', '', text)
+
+    # 3. Strip any remaining non-CSI escape sequences (e.g. \x1b=, \x1b>, \x1b(B)
+    text = re.sub(r'\x1b[@-Z\\-_]', '', text)
+
+    # 4. Process SGR color sequences (\x1b[...m)
+    parts = re.split(r'(\x1b\[[0-9;]*m)', text)
+    result_html = []
+    active_span = False
+
+    ansi_styles = {
+        '34': 'color: #8be9fd; font-weight: bold;',      # Directories (cyan/blue)
+        '1;34': 'color: #8be9fd; font-weight: bold;',
+        '32': 'color: #50fa7b; font-weight: bold;',      # Executables (green)
+        '1;32': 'color: #50fa7b; font-weight: bold;',
+        '35': 'color: #d8b4fe; font-weight: bold;',      # Archive / Media (purple)
+        '1;35': 'color: #d8b4fe; font-weight: bold;',
+        '31': 'color: #ff5555; font-weight: bold;',      # Errors / Alerts (red)
+        '1;31': 'color: #ff5555; font-weight: bold;',
+        '36': 'color: #8be9fd;',                         # Cyan text
+        '1;36': 'color: #8be9fd; font-weight: bold;',
+        '33': 'color: #ffb86c;',                         # Yellow/Orange
+        '1;33': 'color: #ffb86c; font-weight: bold;',
+        '90': 'color: #6272a4;'                          # Muted gray
+    }
+
+    for part in parts:
+        if part.startswith('\x1b['):
+            match = re.match(r'\x1b\[([0-9;]*)m', part)
+            if match:
+                code = match.group(1)
+                codes = code.split(';')
+                if code in ('0', '00', '') or all(c in ('0', '00', '') for c in codes):
+                    if active_span:
+                        result_html.append('</span>')
+                        active_span = False
+                else:
+                    # Look up exact code or matching foreground color code
+                    style = ansi_styles.get(code)
+                    if not style:
+                        for c in codes:
+                            if c in ansi_styles:
+                                style = ansi_styles[c]
+                                break
+                    if style:
+                        if active_span:
+                            result_html.append('</span>')
+                        result_html.append(f'<span style="{style}">')
+                        active_span = True
+                    elif active_span:
+                        result_html.append('</span>')
+                        active_span = False
+        else:
+            if part:
+                cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', part)
+                escaped = html.escape(cleaned)
+
+                # Colorize file & folder tokens in plain text output if no ANSI codes present
+                escaped = re.sub(
+                    r'\b([a-zA-Z0-9_\-\.]+/)\b',
+                    r'<span style="color: #8be9fd; font-weight: bold;">\1</span>',
+                    escaped
+                )
+                escaped = re.sub(
+                    r'\b([a-zA-Z0-9_\-\.]+\.(?:py|ts|js|md|txt|json|sh|html|css))\b',
+                    r'<span style="color: #d8b4fe;">\1</span>',
+                    escaped
+                )
+
+                result_html.append(escaped)
+
+    if active_span:
+        result_html.append('</span>')
+
+    # Final cleanup of any lingering raw escape remnants or bracketed code artifacts
+    final_output = ''.join(result_html)
+    final_output = re.sub(r'\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', final_output)
+    final_output = re.sub(r'\[[0-9;]*[m|h|l]', '', final_output)
+    return final_output
+
+
 class PookieTerminalWindow(QMainWindow):
     """
     Native Desktop Terminal Window matching the Pookie web UI reference.
@@ -47,6 +155,14 @@ class PookieTerminalWindow(QMainWindow):
         self.command_history = []
         self.history_index = -1
         self.anim_timer = None
+
+        # ASCII loading animation state
+        self.loading_timer = QTimer(self)
+        self.loading_timer.setInterval(60)
+        self.loading_timer.timeout.connect(self._animate_loading_step)
+        self.loading_frames = [" Loading... [>    ]", " Loading... [>>   ]", " Loading... [>>>  ]", " Loading... [>>>> ]", " Loading... [>>>>>]"]
+        self.loading_frame_idx = 0
+        self.pending_action_data = None
 
         self._init_ui()
         self._start_pty()
@@ -291,10 +407,11 @@ class PookieTerminalWindow(QMainWindow):
         }
         QLineEdit#CommandInput {
             background-color: transparent;
-            color: #f8f8f2;
+            color: #8be9fd;
             border: none;
             font-family: 'Fira Code', monospace;
             font-size: 13px;
+            font-weight: bold;
         }
         """
         self.setStyleSheet(qss)
@@ -312,46 +429,14 @@ class PookieTerminalWindow(QMainWindow):
         self.terminal_output.append(banner)
 
     def _append_pty_output(self, text: str):
-        # Strip OSC sequences (like Window Title \x1b]0;...\x07)
-        text = re.sub(r'\x1B\].*?(?:\x07|\x1B\\)', '', text)
-        # Strip rogue control chars \x00-\x08 \x0b-\x0c \x0e-\x1f to eliminate square boxes, keep \n \t \x1b
-        text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1a\x1c-\x1f]', '', text)
+        """Clean PTY stream output: fixes □ box rendering bug and formats colors."""
+        cleaned_html = parse_ansi_and_clean_output(text)
+        if not cleaned_html.strip():
+            return
 
         cursor = self.terminal_output.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
-        
-        parts = re.split(r'(\x1B\[[0-9;]*[a-zA-Z])', text)
-        fmt = cursor.charFormat()
-        
-        for part in parts:
-            if not part: continue
-            if part.startswith('\x1B['):
-                if part.endswith('m'):
-                    codes = part[2:-1].split(';')
-                    if not codes or codes == ['']:
-                        codes = ['0']
-                    for code in codes:
-                        c = int(code) if code.isdigit() else 0
-                        if c == 0:
-                            fmt.setForeground(QColor('#f8f8f2'))
-                            fmt.setFontWeight(QFont.Weight.Normal)
-                        elif c == 1: fmt.setFontWeight(QFont.Weight.Bold)
-                        elif c == 30: fmt.setForeground(QColor('#44475a'))
-                        elif c == 31: fmt.setForeground(QColor('#ff5555'))
-                        elif c == 32: fmt.setForeground(QColor('#50fa7b'))
-                        elif c == 33: fmt.setForeground(QColor('#f1fa8c'))
-                        elif c == 34: fmt.setForeground(QColor('#8be9fd'))
-                        elif c == 35: fmt.setForeground(QColor('#ff79c6'))
-                        elif c == 36: fmt.setForeground(QColor('#8be9fd'))
-                        elif c == 37: fmt.setForeground(QColor('#f8f8f2'))
-                        elif c == 39: fmt.setForeground(QColor('#f8f8f2'))
-                        elif c == 90: fmt.setForeground(QColor('#6272a4'))
-                        elif c == 91: fmt.setForeground(QColor('#ff6e6e'))
-                        elif c == 94: fmt.setForeground(QColor('#d6acff'))
-            else:
-                cursor.setCharFormat(fmt)
-                cursor.insertText(part)
-
+        cursor.insertHtml(cleaned_html)
         self.terminal_output.setTextCursor(cursor)
         self.terminal_output.ensureCursorVisible()
 
@@ -391,73 +476,66 @@ class PookieTerminalWindow(QMainWindow):
         category, verb, args = self.command_engine.classify(raw_cmd)
 
         if category == 'ACTION':
-            # Append prompt line
-            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #8be9fd;">{raw_cmd}</span></div>'
+            # Append prompt line with bright cyan typed command
+            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #8be9fd; font-weight: bold;">{html.escape(raw_cmd)}</span></div>'
             self.terminal_output.append(prompt_html)
 
-            # Process 2-tier opposite execution
-            opp_verb, stage_msg, result_msg, symbol = self.command_engine.process_action_command(verb, args)
-
-            # Verb color formatting
-            verb_color = '#50fa7b'  # mint green default
-            if opp_verb in ('remove', 'delete'):
-                verb_color = '#ff5555'  # red
-            elif opp_verb == 'stay':
-                verb_color = '#8be9fd'  # cyan
-
-            stage_html = f'<div style="margin-left: 16px; color: #d8b4fe;"><span style="color: #c084fc; font-weight: bold;">↳ </span><span style="color: {verb_color}; font-weight: bold;">{opp_verb}</span> <span style="color: #d1d5db;">{" ".join(args)}</span></div>'
-            self.terminal_output.append(stage_html)
-
-            self._start_loading_animation(result_msg, symbol)
+            # Start clean subtle ASCII loading animation
+            self.pending_action_data = (verb, args)
+            self.loading_frame_idx = 0
+            self.terminal_output.append(f'<div id="loading_step" style="color: #a89bbe; font-style: italic;">{self.loading_frames[0]}</div>')
+            self.loading_timer.start()
 
         elif category == 'NAVIGATION':
-            # Pass directly to real PTY child shell!
+            # Format prompt line with pink prompt & bright cyan command
+            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #8be9fd; font-weight: bold;">{html.escape(raw_cmd)}</span></div>'
+            self.terminal_output.append(prompt_html)
+
+            # Send command directly to real Linux PTY Bash child process
             self.pty_manager.write_input(raw_cmd + '\n')
 
         else:
-            # UNKNOWN command -> send to shell or display fallback
+            # UNKNOWN command -> pass to real PTY shell
+            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #8be9fd; font-weight: bold;">{html.escape(raw_cmd)}</span></div>'
+            self.terminal_output.append(prompt_html)
             self.pty_manager.write_input(raw_cmd + '\n')
 
-    def _start_loading_animation(self, result_msg: str, symbol: str):
-        cursor = self.terminal_output.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertBlock()
-        self.anim_cursor_pos = cursor.position()
-        
-        self.anim_step = 0
-        self.anim_frames = [" [>    ]", " [>>   ]", " [>>>  ]", " [>>>> ]", " [>>>>>]"]
-        self.anim_result_msg = result_msg
-        self.anim_symbol = symbol
-        
-        self.command_input.setDisabled(True)
-        self._render_anim_frame()
-        
-        self.anim_timer = QTimer(self)
-        self.anim_timer.timeout.connect(self._on_anim_tick)
-        self.anim_timer.start(100)
-
-    def _render_anim_frame(self):
-        cursor = self.terminal_output.textCursor()
-        cursor.setPosition(self.anim_cursor_pos)
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-        cursor.removeSelectedText()
-        if self.anim_step < len(self.anim_frames):
-            frame = self.anim_frames[self.anim_step]
-            cursor.insertHtml(f'<span style="color: #ff79c6; margin-left: 16px;">Loading...{frame}</span>')
+    def _animate_loading_step(self):
+        """Subtle ASCII progress animation for action commands (ticks 3 frames then finishes cleanly)."""
+        self.loading_frame_idx += 1
+        if self.loading_frame_idx < 3:
+            # Update animation
+            cursor = self.terminal_output.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.insertHtml(f'<div id="loading_step" style="color: #a89bbe; font-style: italic;">{self.loading_frames[self.loading_frame_idx]}</div>')
         else:
-            result_html = f'<span style="margin-left: 16px; color: #ffe6f2;"><span style="color: #ff79c6; font-weight: bold;">{self.anim_symbol} </span><span>{self.anim_result_msg}</span></span><br>'
-            cursor.insertHtml(result_html)
-        self.terminal_output.ensureCursorVisible()
+            # Finish animation cleanly and render staged opposite result
+            self.loading_timer.stop()
+            cursor = self.terminal_output.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
 
-    def _on_anim_tick(self):
-        self.anim_step += 1
-        self._render_anim_frame()
-        if self.anim_step >= len(self.anim_frames):
-            self.anim_timer.stop()
-            self.anim_timer.deleteLater()
-            self.anim_timer = None
-            self.command_input.setDisabled(False)
-            self.command_input.setFocus()
+            if self.pending_action_data:
+                verb, args = self.pending_action_data
+                self.pending_action_data = None
+
+                opp_verb, stage_msg, result_msg, symbol = self.command_engine.process_action_command(verb, args)
+
+                # Verb color formatting
+                verb_color = '#50fa7b'  # mint green default
+                if opp_verb in ('remove', 'delete'):
+                    verb_color = '#ff5555'  # soft red
+                elif opp_verb == 'stay':
+                    verb_color = '#8be9fd'  # cyan
+
+                stage_html = f'<div style="margin-left: 16px; color: #d8b4fe;"><span style="color: #c084fc; font-weight: bold;">↳ </span><span style="color: {verb_color}; font-weight: bold;">{opp_verb}</span> <span style="color: #d1d5db;">{" ".join(args)}</span></div>'
+                result_html = f'<div style="margin-left: 16px; color: #ffe6f2;"><span style="color: #ff79c6; font-weight: bold;">{symbol} </span><span>{result_msg}</span></div><br>'
+
+                self.terminal_output.append(stage_html)
+                self.terminal_output.append(result_html)
 
     def _handle_ctrl_c(self):
         self.pty_manager.send_interrupt()

@@ -6,8 +6,12 @@ import os
 if hasattr(os, "geteuid") and os.geteuid() == 0:
     sys.exit("Security Error: Pookie Reverse Terminal must not be run with root/sudo privileges!")
 
-from terminal.qt_compat import QApplication
-from terminal.ui import PookieTerminalWindow
+try:
+    from terminal.qt_compat import QApplication
+    from terminal.ui import PookieTerminalWindow
+except ImportError:
+    from qt_compat import QApplication
+    from ui import PookieTerminalWindow
 
 def main():
     workspace = os.path.expanduser("~/PookieTerminalWorkspace")

@@ -5,7 +5,11 @@ import fcntl
 import termios
 import struct
 import signal
-from terminal.qt_compat import QObject, Signal, QSocketNotifier
+import shutil
+try:
+    from terminal.qt_compat import QObject, Signal, QSocketNotifier
+except ImportError:
+    from qt_compat import QObject, Signal, QSocketNotifier
 
 class PTYManager(QObject):
     """
@@ -37,8 +41,10 @@ class PTYManager(QObject):
         env = os.environ.copy()
         env["TERM"] = "xterm-256color"
         env["POOKIE_REVERSE_TERMINAL"] = "1"
-        # PS1 and PS0 will be configured via custom init file
-        
+        env["PS1"] = ""
+        env["PS2"] = ""
+        env["PROMPT_COMMAND"] = ""
+
         self.child_pid = os.fork()
 
         if self.child_pid == 0:
@@ -48,6 +54,14 @@ class PTYManager(QObject):
             # Set controlling terminal
             try:
                 fcntl.ioctl(self.slave_fd, termios.TIOCSCTTY, 0)
+            except Exception:
+                pass
+
+            # Disable ECHO on PTY slave so input is not echoed back into stdout
+            try:
+                attrs = termios.tcgetattr(self.slave_fd)
+                attrs[3] = attrs[3] & ~termios.ECHO
+                termios.tcsetattr(self.slave_fd, termios.TCSANOW, attrs)
             except Exception:
                 pass
 
@@ -67,20 +81,8 @@ class PTYManager(QObject):
             except Exception:
                 pass
 
-            init_file = os.path.join(self.workspace_path, ".bash_init")
-            try:
-                with open(init_file, "w") as f:
-                    f.write("alias ls='ls --color=always'\n")
-                    f.write("alias dir='dir --color=always'\n")
-                    # Magenta/Pink prompt (#ff79c6) and Cyan typed commands (#8be9fd)
-                    f.write("export PS1='\\[\\033[38;2;255;121;198m\\]pookie@reverse:\\w\\$ \\[\\033[38;2;139;233;253m\\]'\n")
-                    # Reset color before command output execution
-                    f.write("export PS0='\\[\\033[0m\\]'\n")
-            except Exception:
-                pass
-
-            shell = os.environ.get("SHELL", "/bin/bash")
-            os.execvpe(shell, [shell, "--rcfile", init_file], env)
+            shell = shutil.which("bash") or "/bin/bash"
+            os.execvpe(shell, [shell, "--norc"], env)
         else:
             # --- PARENT PROCESS ---
             os.close(self.slave_fd)
