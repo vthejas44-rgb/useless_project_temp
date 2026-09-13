@@ -130,8 +130,56 @@ npm run dev
 *Add caption explaining what this shows*
 
 # Diagrams
-![Workflow](Add your workflow/architecture diagram here)
-*Add caption explaining your workflow*
+```mermaid
+graph TD
+    A["👤 User"] --> B["🖥️ PySide6 GUI Desktop Application"]
+    B --> C["⌨️ Command Input Box (QLineEdit)"]
+    C --> D["🧠 Command Engine (Classification Layer)"]
+
+    D -->|Classifies Input| E{"Command Type?"}
+
+    E -->|"Action Command<br/>(delete, copy, open, exit)"| F["🔄 Opposite Resolution Matrix"]
+    E -->|"Navigation Command<br/>(ls, pwd, cd, grep)"| K["🔌 Native POSIX PTY<br/>(Pseudo-terminal)"]
+
+    subgraph PATHA [" 💗 PATH A — Action / Opposite Interceptor "]
+        F --> G["🔍 Identify Exact Opposite Operation<br/><i>e.g. delete → create</i>"]
+        G --> H["📁 Execute Locally on<br/>File System Sandbox"]
+        H --> I["⏳ Native Loading Animation UI"]
+        I --> J["💌 Custom Success Message<br/><i>'Item created ♡'</i>"]
+    end
+
+    subgraph PATHB [" 💜 PATH B — Navigation / Real Shell "]
+        K --> L["🐚 Subprocess Bash Shell"]
+        L --> M["⚙️ Execute Real Command<br/>on Underlying OS"]
+        M --> N["📤 Raw Output<br/>(incl. ANSI Escape Colors)"]
+        N --> O["🎨 Native ANSI Parser"]
+        O --> P["✨ Converts to Colored<br/>Qt Rich Text"]
+    end
+
+    J --> Q["🖼️ Terminal Display"]
+    P --> Q
+
+    Q -.->|Renders Back To| B
+
+    %% ==== STYLING ====
+    classDef gui fill:#fce4ec,stroke:#ad1457,stroke-width:2px,color:#4a148c,font-weight:bold;
+    classDef engine fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c,font-weight:bold;
+    classDef decision fill:#e1bee7,stroke:#6a1b9a,stroke-width:3px,color:#311b92,font-weight:bold;
+    classDef pathA fill:#fff0f6,stroke:#d6336c,stroke-width:2px,color:#9d174d;
+    classDef pathB fill:#f5f0ff,stroke:#7c3aed,stroke-width:2px,color:#4c1d95;
+    classDef display fill:#fbcfe8,stroke:#831843,stroke-width:3px,color:#500724,font-weight:bold;
+
+    class A,B,C gui;
+    class D engine;
+    class E decision;
+    class F,G,H,I,J pathA;
+    class K,L,M,N,O,P pathB;
+    class Q display;
+
+    style PATHA fill:#fff5f9,stroke:#e05a94,stroke-width:2px,stroke-dasharray: 4 2
+    style PATHB fill:#f7f3ff,stroke:#9061e0,stroke-width:2px,stroke-dasharray: 4 2
+```
+*Architecture and execution flow mapping how Pookie Terminal intercepts and processes commands.*
 
 ## Team Contributions
 - Thejas V: Implementation of PTY integration and Action Mapping architecture. UI formatting and compilation.
