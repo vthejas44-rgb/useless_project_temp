@@ -40,6 +40,7 @@ export interface StagedOutputLog {
   args: string[];
   stageLine?: string; // e.g. "↳ create project"
   resultLine?: string; // e.g. "✓ project has been created ♡"
+  formattedItems?: { name: string; type: 'file' | 'directory' }[];
   resultType?: 'success' | 'error' | 'info' | 'cute';
   customSymbol?: string; // e.g. "☺" or "✓" or "♡"
 }

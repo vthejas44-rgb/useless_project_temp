@@ -18,11 +18,40 @@ export const Terminal: React.FC<TerminalProps> = ({
   onExecuteCommand,
   onClear
 }) => {
+  const [booting, setBooting] = useState<boolean>(true);
+  const [bootStep, setBootStep] = useState<number>(0);
   const [inputVal, setInputVal] = useState('');
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const bootLines = [
+    'POOKIE TERMINAL v1.0 [Web Edition]',
+    'Initializing reverse execution engine...',
+    'Loading virtual workspace environment...',
+    'Reverse engine: ONLINE ♡',
+    'Ready.'
+  ];
+
+  // Boot sequence animation
+  useEffect(() => {
+    if (bootStep < bootLines.length) {
+      const timer = setTimeout(() => {
+        setBootStep(prev => prev + 1);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      const finishTimer = setTimeout(() => {
+        setBooting(false);
+      }, 200);
+      return () => clearTimeout(finishTimer);
+    }
+  }, [bootStep]);
+
+  const handleSkipBoot = () => {
+    setBooting(false);
+  };
 
   // Auto-scroll on new logs
   useEffect(() => {
@@ -101,27 +130,41 @@ export const Terminal: React.FC<TerminalProps> = ({
       </div>
 
       {/* Terminal Canvas Body */}
-      <div className="pookie-terminal-body p-6 overflow-y-auto font-mono text-sm leading-relaxed select-text">
-        {/* Pixel Cat Header Banner */}
-        <div className="pookie-header-banner mb-6 select-none">
-          <div className="flex items-center gap-4">
-            <pre className="text-pink-400 text-xs font-bold leading-tight">
+      <div className="pookie-terminal-body p-4 md:p-6 overflow-y-auto font-mono text-sm leading-relaxed select-text" onClick={handleSkipBoot}>
+        {booting ? (
+          <div className="space-y-1.5 py-2 text-pink-300/90 font-mono text-xs md:text-sm">
+            {bootLines.slice(0, bootStep).map((line, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="text-pink-500 font-bold">✦</span>
+                <span>{line}</span>
+              </div>
+            ))}
+            <div className="text-gray-400 text-xs mt-4 italic opacity-75">
+              (click or type to skip startup sequence)
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Pixel Cat Header Banner */}
+            <div className="pookie-header-banner mb-6 select-none">
+              <div className="flex items-center gap-4">
+                <pre className="text-pink-400 text-xs font-bold leading-tight">
 {`   |\\__/|
   (  -.- )
   (  > < )`}
-            </pre>
+                </pre>
 
-            <div>
-              <div className="text-pink-400 text-xl font-bold font-pixel tracking-wider flex items-center gap-2">
-                <span>✦ Pookie Terminal</span>
-                <span className="text-pink-300 text-lg">♡</span>
-              </div>
-              <div className="text-pink-300/80 text-xs tracking-wide font-medium mt-1">
-                same commands. opposite results. ♡
+                <div>
+                  <div className="text-pink-400 text-xl font-bold font-pixel tracking-wider flex items-center gap-2">
+                    <span>✦ Pookie Terminal</span>
+                    <span className="text-pink-300 text-lg">♡</span>
+                  </div>
+                  <div className="text-pink-300/80 text-xs tracking-wide font-medium mt-1">
+                    same commands. opposite results. ♡
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
         {/* Terminal Logs */}
         <div className="space-y-4">
@@ -142,7 +185,7 @@ export const Terminal: React.FC<TerminalProps> = ({
                   <span className="prompt-label font-bold text-pink-400">
                     pookie@reverse:{log.cwd}$
                   </span>
-                  <span className="text-gray-100 font-medium">{log.command}</span>
+                  <span className="text-cyan-300 font-bold">{log.command}</span>
                 </div>
 
                 {/* Stage 1 Line (for Action Commands) */}
@@ -154,12 +197,29 @@ export const Terminal: React.FC<TerminalProps> = ({
                   </div>
                 )}
 
-                {/* Result Line */}
-                {log.resultLine && (
-                  <div className="flex items-baseline gap-2 pl-4 text-pink-200/90">
-                    <span className="text-pink-400 font-bold">{log.customSymbol || '✓'}</span>
-                    <span className="text-pink-100">{log.resultLine}</span>
+                {/* Formatted Items for ls/dir */}
+                {log.formattedItems && log.formattedItems.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 pl-4 py-1">
+                    {log.formattedItems.map((item, i) => {
+                      const isDir = item.type === 'directory';
+                      const isTextFile = item.name.match(/\.(py|ts|js|md|txt|json|sh|html|css)$/i);
+                      let styleClass = 'text-gray-200';
+                      if (isDir) styleClass = 'text-cyan-300 font-bold';
+                      else if (isTextFile) styleClass = 'text-purple-300 font-medium';
+                      return (
+                        <span key={i} className={styleClass}>
+                          {item.name}
+                        </span>
+                      );
+                    })}
                   </div>
+                ) : (
+                  log.resultLine && (
+                    <div className="flex items-baseline gap-2 pl-4 text-pink-200/90">
+                      <span className="text-pink-400 font-bold">{log.customSymbol || '✓'}</span>
+                      <span className="text-pink-100">{log.resultLine}</span>
+                    </div>
+                  )
                 )}
               </div>
             );
@@ -178,7 +238,7 @@ export const Terminal: React.FC<TerminalProps> = ({
               value={inputVal}
               onChange={e => setInputVal(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="bg-transparent border-none outline-none text-gray-100 font-mono w-full caret-pink-500"
+              className="bg-transparent border-none outline-none text-cyan-300 font-bold font-mono w-full caret-pink-500"
               autoFocus
               spellCheck={false}
               autoComplete="off"
@@ -192,6 +252,8 @@ export const Terminal: React.FC<TerminalProps> = ({
         </div>
 
         <div ref={bottomRef} />
+          </>
+        )}
       </div>
     </div>
   );

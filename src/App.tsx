@@ -33,6 +33,8 @@ export const App: React.FC = () => {
       let resultLine = '';
       let customSymbol = '✓';
 
+      let formattedItems: { name: string; type: 'file' | 'directory' }[] | undefined = undefined;
+
       if (verb === 'cd') {
         const res = fs.cd(classified.args[0]);
         resultLine = res.message;
@@ -44,7 +46,10 @@ export const App: React.FC = () => {
         if (items.length === 0) {
           resultLine = '(directory is empty ♡)';
         } else {
-          resultLine = items.map(item => item.type === 'directory' ? `${item.name}/` : item.name).join('   ');
+          formattedItems = items.map(item => ({
+            name: item.type === 'directory' ? `${item.name}/` : item.name,
+            type: item.type
+          }));
         }
       } else if (verb === 'clear') {
         setLogs([]);
@@ -69,6 +74,7 @@ export const App: React.FC = () => {
           originalVerb: verb,
           args: classified.args,
           resultLine,
+          formattedItems,
           customSymbol
         }
       ]);
