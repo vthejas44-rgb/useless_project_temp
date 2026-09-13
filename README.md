@@ -1,4 +1,4 @@
-<img width="1280" height="640" alt="git (1)" src="https://github.com/user-attachments/assets/8920b256-2ba8-4988-b824-5351134eb4bd" />
+<img width="1110" height="791" alt="Screenshot From 2026-09-13 16-58-01 (1)" src="https://github.com/user-attachments/assets/b07c3baf-cea0-45fe-9252-521e5a417530" /><img width="1280" height="640" alt="git (1)" src="https://github.com/user-attachments/assets/8920b256-2ba8-4988-b824-5351134eb4bd" />
 
 # Pookie Terminal 🎀💻
 ### The Terminal That Does The Opposite
@@ -119,15 +119,13 @@ npm run dev
 ```
 
 ### Project Documentation
-# Screenshots (Add at least 3)
-![Screenshot1](Add screenshot 1 here with proper name)
-*Add caption explaining what this shows*
+# Screenshots
+Screenshot1:https://drive.google.com/file/d/1oZvUO2x7hZ7TTP_1DM89-S2-pk342R_8/view?usp=drive_link
 
-![Screenshot2](Add screenshot 2 here with proper name)
-*Add caption explaining what this shows*
+Screenshot2:https://drive.google.com/file/d/1ZyCMbjHLOa-WTqVykke24xP3JSmIvH5V/view
 
-![Screenshot3](Add screenshot 3 here with proper name)
-*Add caption explaining what this shows*
+Screenshot3:https://drive.google.com/file/d/1rk2tlt1hxFpSqEhzJmO47Ax3zgwpcYa8/view
+
 
 # Diagrams
 ```mermaid
@@ -179,8 +177,14 @@ graph TD
     style PATHA fill:#fff5f9,stroke:#e05a94,stroke-width:2px,stroke-dasharray: 4 2
     style PATHB fill:#f7f3ff,stroke:#9061e0,stroke-width:2px,stroke-dasharray: 4 2
 ```
-*Architecture and execution flow mapping how Pookie Terminal intercepts and processes commands.*
+*Architecture and execution flow mapping how Pookie Terminal intercepts and processes commands.* link
 
+## Demo video link : https://drive.google.com/file/d/1rCwSDXPpi_rZvQMhZppgRwAnvENvn03Q/view?usp=drive_link
+
+  In the demo video we have demostrated that when we try to create a file it deletes the file and when we try to delete the file it creates the file. it means that the commands we should type are opposites. We can do other things too.We have created an actual terminal due to limitations  we have demonstrated this in a video and so we have hosted a webapp of this terminal version .
+
+## Vercel link :https://useless-project-temp-murex-theta.vercel.app/
+  
 ## Team Contributions
 - Thejas V: Implementation of PTY integration and Action Mapping architecture. UI formatting and compilation.
 - Sreelakshmi S: Web Interface Prototype and UI Design.
