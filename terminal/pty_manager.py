@@ -37,8 +37,8 @@ class PTYManager(QObject):
         env = os.environ.copy()
         env["TERM"] = "xterm-256color"
         env["POOKIE_REVERSE_TERMINAL"] = "1"
-        env["PS1"] = r"pookie@reverse:\w\$ "
-
+        # PS1 and PS0 will be configured via custom init file
+        
         self.child_pid = os.fork()
 
         if self.child_pid == 0:
@@ -67,8 +67,20 @@ class PTYManager(QObject):
             except Exception:
                 pass
 
+            init_file = os.path.join(self.workspace_path, ".bash_init")
+            try:
+                with open(init_file, "w") as f:
+                    f.write("alias ls='ls --color=always'\n")
+                    f.write("alias dir='dir --color=always'\n")
+                    # Magenta/Pink prompt (#ff79c6) and Cyan typed commands (#8be9fd)
+                    f.write("export PS1='\\[\\033[38;2;255;121;198m\\]pookie@reverse:\\w\\$ \\[\\033[38;2;139;233;253m\\]'\n")
+                    # Reset color before command output execution
+                    f.write("export PS0='\\[\\033[0m\\]'\n")
+            except Exception:
+                pass
+
             shell = os.environ.get("SHELL", "/bin/bash")
-            os.execvpe(shell, [shell], env)
+            os.execvpe(shell, [shell, "--rcfile", init_file], env)
         else:
             # --- PARENT PROCESS ---
             os.close(self.slave_fd)

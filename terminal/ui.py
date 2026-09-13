@@ -5,7 +5,7 @@ from terminal.qt_compat import (
     Qt, QSize, QSocketNotifier, Signal, QObject,
     QFont, QColor, QTextCursor, QIcon, QKeySequence, QShortcut,
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QLineEdit, QFrame, QScrollArea, QApplication
+    QPushButton, QTextEdit, QLineEdit, QFrame, QScrollArea, QApplication, QTimer
 )
 
 from terminal.pty_manager import PTYManager
@@ -46,6 +46,7 @@ class PookieTerminalWindow(QMainWindow):
 
         self.command_history = []
         self.history_index = -1
+        self.anim_timer = None
 
         self._init_ui()
         self._start_pty()
@@ -311,11 +312,46 @@ class PookieTerminalWindow(QMainWindow):
         self.terminal_output.append(banner)
 
     def _append_pty_output(self, text: str):
-        # Strip ANSI escape sequences for clean rendering in QTextEdit
-        clean_text = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', text)
+        # Strip OSC sequences (like Window Title \x1b]0;...\x07)
+        text = re.sub(r'\x1B\].*?(?:\x07|\x1B\\)', '', text)
+        # Strip rogue control chars \x00-\x08 \x0b-\x0c \x0e-\x1f to eliminate square boxes, keep \n \t \x1b
+        text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1a\x1c-\x1f]', '', text)
+
         cursor = self.terminal_output.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertText(clean_text)
+        
+        parts = re.split(r'(\x1B\[[0-9;]*[a-zA-Z])', text)
+        fmt = cursor.charFormat()
+        
+        for part in parts:
+            if not part: continue
+            if part.startswith('\x1B['):
+                if part.endswith('m'):
+                    codes = part[2:-1].split(';')
+                    if not codes or codes == ['']:
+                        codes = ['0']
+                    for code in codes:
+                        c = int(code) if code.isdigit() else 0
+                        if c == 0:
+                            fmt.setForeground(QColor('#f8f8f2'))
+                            fmt.setFontWeight(QFont.Weight.Normal)
+                        elif c == 1: fmt.setFontWeight(QFont.Weight.Bold)
+                        elif c == 30: fmt.setForeground(QColor('#44475a'))
+                        elif c == 31: fmt.setForeground(QColor('#ff5555'))
+                        elif c == 32: fmt.setForeground(QColor('#50fa7b'))
+                        elif c == 33: fmt.setForeground(QColor('#f1fa8c'))
+                        elif c == 34: fmt.setForeground(QColor('#8be9fd'))
+                        elif c == 35: fmt.setForeground(QColor('#ff79c6'))
+                        elif c == 36: fmt.setForeground(QColor('#8be9fd'))
+                        elif c == 37: fmt.setForeground(QColor('#f8f8f2'))
+                        elif c == 39: fmt.setForeground(QColor('#f8f8f2'))
+                        elif c == 90: fmt.setForeground(QColor('#6272a4'))
+                        elif c == 91: fmt.setForeground(QColor('#ff6e6e'))
+                        elif c == 94: fmt.setForeground(QColor('#d6acff'))
+            else:
+                cursor.setCharFormat(fmt)
+                cursor.insertText(part)
+
         self.terminal_output.setTextCursor(cursor)
         self.terminal_output.ensureCursorVisible()
 
@@ -356,7 +392,7 @@ class PookieTerminalWindow(QMainWindow):
 
         if category == 'ACTION':
             # Append prompt line
-            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #f8f8f2;">{raw_cmd}</span></div>'
+            prompt_html = f'<div style="margin-top: 8px;"><span style="color: #ff79c6; font-weight: bold;">pookie@reverse:~$ </span><span style="color: #8be9fd;">{raw_cmd}</span></div>'
             self.terminal_output.append(prompt_html)
 
             # Process 2-tier opposite execution
@@ -370,10 +406,9 @@ class PookieTerminalWindow(QMainWindow):
                 verb_color = '#8be9fd'  # cyan
 
             stage_html = f'<div style="margin-left: 16px; color: #d8b4fe;"><span style="color: #c084fc; font-weight: bold;">↳ </span><span style="color: {verb_color}; font-weight: bold;">{opp_verb}</span> <span style="color: #d1d5db;">{" ".join(args)}</span></div>'
-            result_html = f'<div style="margin-left: 16px; color: #ffe6f2;"><span style="color: #ff79c6; font-weight: bold;">{symbol} </span><span>{result_msg}</span></div><br>'
-
             self.terminal_output.append(stage_html)
-            self.terminal_output.append(result_html)
+
+            self._start_loading_animation(result_msg, symbol)
 
         elif category == 'NAVIGATION':
             # Pass directly to real PTY child shell!
@@ -382,6 +417,47 @@ class PookieTerminalWindow(QMainWindow):
         else:
             # UNKNOWN command -> send to shell or display fallback
             self.pty_manager.write_input(raw_cmd + '\n')
+
+    def _start_loading_animation(self, result_msg: str, symbol: str):
+        cursor = self.terminal_output.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertBlock()
+        self.anim_cursor_pos = cursor.position()
+        
+        self.anim_step = 0
+        self.anim_frames = [" [>    ]", " [>>   ]", " [>>>  ]", " [>>>> ]", " [>>>>>]"]
+        self.anim_result_msg = result_msg
+        self.anim_symbol = symbol
+        
+        self.command_input.setDisabled(True)
+        self._render_anim_frame()
+        
+        self.anim_timer = QTimer(self)
+        self.anim_timer.timeout.connect(self._on_anim_tick)
+        self.anim_timer.start(100)
+
+    def _render_anim_frame(self):
+        cursor = self.terminal_output.textCursor()
+        cursor.setPosition(self.anim_cursor_pos)
+        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        cursor.removeSelectedText()
+        if self.anim_step < len(self.anim_frames):
+            frame = self.anim_frames[self.anim_step]
+            cursor.insertHtml(f'<span style="color: #ff79c6; margin-left: 16px;">Loading...{frame}</span>')
+        else:
+            result_html = f'<span style="margin-left: 16px; color: #ffe6f2;"><span style="color: #ff79c6; font-weight: bold;">{self.anim_symbol} </span><span>{self.anim_result_msg}</span></span><br>'
+            cursor.insertHtml(result_html)
+        self.terminal_output.ensureCursorVisible()
+
+    def _on_anim_tick(self):
+        self.anim_step += 1
+        self._render_anim_frame()
+        if self.anim_step >= len(self.anim_frames):
+            self.anim_timer.stop()
+            self.anim_timer.deleteLater()
+            self.anim_timer = None
+            self.command_input.setDisabled(False)
+            self.command_input.setFocus()
 
     def _handle_ctrl_c(self):
         self.pty_manager.send_interrupt()
