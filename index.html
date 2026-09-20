@@ -1,18 +1,298 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐱</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pookie Terminal — Same Commands. Opposite Results. ♡</title>
-    <meta name="description" content="Pookie Terminal is a funny reverse-shell web application that executes the opposite of action commands while keeping navigation normal." />
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Press+Start+2P&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Terminal That Should Not Exist — Pookie Terminal Journal</title>
+<meta name="description" content="A hackathon project journal for Pookie Terminal — the terminal that gives opposite results.">
+<style>
+:root {
+  --bg:#07060d; --panel:#0f0c19; --panel2:#151023; --text:#f4efff;
+  --muted:#aaa0bd; --pink:#ff78c8; --purple:#a78bfa; --line:#2a2138;
+  --green:#8ee6a8; --red:#ff7d9d; --shadow:0 20px 60px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:
+ radial-gradient(circle at 15% 0%,rgba(167,139,250,.15),transparent 30%),
+ radial-gradient(circle at 85% 20%,rgba(255,120,200,.11),transparent 28%),
+ var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.65}
+a{color:var(--pink);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{width:min(1080px,92%);margin:auto}
+nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(16px);background:rgba(7,6,13,.78);border-bottom:1px solid var(--line)}
+.navin{display:flex;justify-content:space-between;align-items:center;padding:14px 0;gap:20px}
+.logo{font-weight:800;letter-spacing:.04em}
+.navlinks{display:flex;gap:18px;font-size:13px;color:var(--muted)}
+.hero{padding:110px 0 80px;min-height:88vh;display:grid;place-items:center;text-align:center}
+.eyebrow{display:inline-flex;gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.03);font-size:12px;color:var(--muted)}
+h1{font-size:clamp(48px,9vw,100px);line-height:.94;margin:22px 0 18px;letter-spacing:-.06em}
+.gradient{background:linear-gradient(100deg,#fff,var(--pink),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{max-width:720px;margin:0 auto;color:var(--muted);font-size:18px}
+.terminal-card{margin:44px auto 0;max-width:850px;text-align:left;border:1px solid #332844;border-radius:16px;overflow:hidden;background:#090711;box-shadow:var(--shadow)}
+.bar{height:38px;background:#181321;display:flex;align-items:center;padding:0 14px;gap:7px;border-bottom:1px solid #2c2436}
+.dot{width:9px;height:9px;border-radius:50%;background:#ff6b8b}
+.dot:nth-child(2){background:#ffc857} .dot:nth-child(3){background:#6ee7a0}
+.terminal-body{padding:22px;font:14px/1.7 "SFMono-Regular",Consolas,monospace;color:#ddd}
+.prompt{color:var(--pink)} .success{color:var(--green)} .dim{color:#776d89}
+section{padding:90px 0;border-top:1px solid var(--line)}
+.kicker{color:var(--pink);font:700 12px/1.2 "SFMono-Regular",monospace;text-transform:uppercase;letter-spacing:.14em}
+h2{font-size:clamp(32px,5vw,56px);line-height:1;margin:12px 0 16px;letter-spacing:-.04em}
+.lead{color:var(--muted);max-width:720px;font-size:17px}
+.timeline{position:relative;margin-top:48px}
+.timeline:before{content:"";position:absolute;left:19px;top:0;bottom:0;width:1px;background:linear-gradient(var(--pink),var(--purple),transparent)}
+.event{position:relative;padding-left:58px;margin:0 0 70px}
+.marker{position:absolute;left:10px;top:4px;width:19px;height:19px;border-radius:50%;background:var(--bg);border:4px solid var(--pink);box-shadow:0 0 22px rgba(255,120,200,.3)}
+.time{font:700 13px "SFMono-Regular",monospace;color:var(--pink)}
+.event h3{font-size:30px;margin:7px 0 10px}
+.card{background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--shadow)}
+.media-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:20px}
+.media{margin:0;background:#090711;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.media img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#000}
+.caption{padding:11px 14px;color:var(--muted);font-size:12px}
+.gif-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:30px}
+.gif{background:#0d0a15;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.gif img{display:block;width:100%;height:230px;object-fit:cover;background:#050409}
+.gif .inside{padding:16px}
+.tag{display:inline-block;font:700 11px "SFMono-Regular",monospace;color:var(--purple);border:1px solid #392c4d;border-radius:999px;padding:4px 8px;margin-bottom:8px}
+.quote{border-left:3px solid var(--pink);padding:4px 0 4px 18px;font-size:22px;font-weight:650;margin:28px 0}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.fact{padding:20px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.025)}
+.fact strong{display:block;font-size:26px;margin-bottom:4px}
+footer{padding:70px 0 100px;text-align:center;color:var(--muted)}
+.repo{display:inline-flex;align-items:center;gap:9px;padding:13px 18px;border:1px solid #463557;border-radius:12px;background:#100c18;margin-top:15px}
+@media(max-width:720px){
+ .navlinks{display:none} .hero{padding-top:80px} .media-grid,.gif-grid,.split{grid-template-columns:1fr}
+ .event h3{font-size:25px} section{padding:65px 0}
+}
+</style>
+</head>
+<body>
+<nav>
+ <div class="wrap navin">
+  <div class="logo">POOKIE TERMINAL <span class="dim">/ journal</span></div>
+  <div class="navlinks">
+   <a href="#story">Story</a><a href="#bugs">Bugs</a><a href="#demo">Demo</a><a href="#team">Team</a>
+  </div>
+ </div>
+</nav>
+
+<header class="hero">
+ <div class="wrap">
+  <div class="eyebrow">HACKATHON PROJECT JOURNAL · SEPTEMBER 2026</div>
+  <h1>THE TERMINAL<br><span class="gradient">THAT SHOULD NOT EXIST.</span></h1>
+  <p>Two people. One useless idea. A real Linux terminal that does the opposite of what you ask it to do.</p>
+
+  <div class="terminal-card">
+   <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+   <div class="terminal-body">
+    <div><span class="prompt">pookie@reverse:~$</span> delete file.txt</div>
+    <div class="success">✓ file.txt removed</div>
+    <br>
+    <div><span class="dim"># Same command. Opposite result.</span></div>
+    <div><span class="prompt">pookie@reverse:~$</span> ls</div>
+    <div>copy_text.txt &nbsp; projects &nbsp; secret-plan.txt &nbsp; text.txt</div>
+   </div>
+  </div>
+ </div>
+</header>
+
+<section id="story">
+<div class="wrap">
+ <div class="kicker">The day</div>
+ <h2>We started with absolutely no idea.</h2>
+ <p class="lead">The build started around 8 AM. By 11 AM, after throwing away ideas that were too useful, we finally had something suitably pointless.</p>
+
+ <div class="timeline">
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">08:00 AM — THE VOID</div>
+   <h3>No idea. Zero direction.</h3>
+   <div class="card">
+    <p>We started the hackathon without a solid project idea. We brainstormed, searched, and kept asking the most important question for a useless-project competition: <strong>“Is this actually useless?”</strong></p>
+    <div class="quote">If it solves a real problem, reject it.</div>
+    <p>One of our early ideas came from an Instagram reel about making a matchmaking/marriage-related webpage. It could have been useful — which was exactly the problem.</p>
+   </div>
+  </article>
+
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">11:00 AM — FINALLY.</div>
+   <h3>The opposite terminal.</h3>
+   <div class="card">
+    <p>We finally settled on a terminal where selected action commands do the opposite. The idea also connected with a terminal project I had wanted to build for a while.</p>
+    <p><strong>Sreelakshmi</strong> started shaping the UI/UX while I focused on the terminal implementation.</p>
+   </div>
+  </article>
+
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">11:00 AM → 12:00 PM — MAKE IT LOOK REAL</div>
+   <h3>First milestone: a terminal-looking webpage.</h3>
+   <div class="card">
+    <p>Before touching the actual terminal, we turned the UI/UX into a working webpage. By around noon, we had the visual shell of Pookie Terminal.</p>
+    <p>It looked like a terminal. It just wasn't one yet.</p>
+   </div>
+  </article>
+
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">12:00–12:30 PM — FUEL</div>
+   <h3>Even useless software needs food.</h3>
+   <div class="card"><p>Quick food break. Then back to making the fake terminal become a real one.</p></div>
+  </article>
+
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">01:00 PM — OKAY, MAKE IT REAL</div>
+   <h3>The webpage became an actual terminal.</h3>
+   <div class="card">
+    <p>An outside suggestion pushed us toward turning the UI into a real terminal rather than stopping at the webpage. I started working on the Python side and the actual terminal behaviour.</p>
+    <p>The important design decision was to reverse <strong>actions</strong>, not navigation. Commands such as <code>ls</code>, <code>pwd</code>, and <code>cd</code> remain normal so the terminal is still usable.</p>
+   </div>
+  </article>
+
+  <article class="event">
+   <div class="marker"></div>
+   <div class="time">~03:00 PM — IT ACTUALLY WORKED</div>
+   <h3>The moment the stupid idea became real.</h3>
+   <div class="card">
+    <p>The terminal was working. It could interact with the real filesystem instead of being just a fake terminal screen.</p>
+    <p>We tested navigation, file operations, and the opposite-command behaviour. Some mappings worked; a few, including lock/unlock, did not make it into the working set.</p>
+   </div>
+  </article>
+ </div>
+</div>
+</section>
+
+<section id="bugs">
+<div class="wrap">
+ <div class="kicker">Things that broke</div>
+ <h2>Because of course it did.</h2>
+ <p class="lead">The journal is not a changelog. These are the moments where the project actually fought back.</p>
+
+ <div class="media-grid">
+  <figure class="media">
+   <img src="pookie_journal_assets/221362.jpg" alt="Pookie Terminal with unwanted terminal control characters">
+   <figcaption class="caption">The broken output: unwanted control/formatting sequences appeared inside the terminal.</figcaption>
+  </figure>
+  <figure class="media">
+   <img src="pookie_journal_assets/221365.jpg" alt="Pookie Terminal with cleaner output">
+   <figcaption class="caption">A later test with cleaner output after working through the terminal-output issue.</figcaption>
+  </figure>
+ </div>
+
+ <div class="card" style="margin-top:22px">
+  <div class="time">THE PINK-SQUARE / CONTROL-CHARACTER INCIDENT</div>
+  <h3>Why is my terminal speaking gibberish?</h3>
+  <p>During testing, terminal formatting/control sequences started appearing as literal characters in the output. Instead of a clean <code>ls</code>, we were getting things that looked like <code>[31m</code>, <code>[0m</code> and other escape-code fragments.</p>
+  <p>We had to stop building features and clean up the terminal output before moving on.</p>
+ </div>
+
+ <div class="gif-grid">
+  <div class="gif">
+   <img src="https://media.giphy.com/media/IZ7R7Mok8NXzyGmlvE/giphy.gif" alt="Debugging GIF">
+   <div class="inside"><span class="tag">DEBUGGING</span><div>When the terminal decides to invent its own language.</div><a href="https://giphy.com/gifs/MicrosoftCloud-msbuild-microsoft-build-IZ7R7Mok8NXzyGmlvE" target="_blank" rel="noopener">GIF source ↗</a></div>
+  </div>
+  <div class="gif">
+   <img src="https://media.giphy.com/media/WGU4mM0C1eCjTLjUTb/giphy.gif" alt="Coding GIF">
+   <div class="inside"><span class="tag">BUILD MODE</span><div>Back to typing until the thing behaves.</div><a href="https://giphy.com/gifs/uta-defoko-utane-WGU4mM0C1eCjTLjUTb" target="_blank" rel="noopener">GIF source ↗</a></div>
+  </div>
+ </div>
+</div>
+</section>
+
+<section>
+<div class="wrap">
+ <div class="kicker">The real boss fight</div>
+ <h2>The terminal worked.<br>The server didn't.</h2>
+ <div class="split">
+  <div class="fact"><strong>~5:00 PM</strong><span>Submission target. We needed a live link.</span></div>
+  <div class="fact"><strong>Problem</strong><span>A real terminal needs an underlying machine/server to actually run.</span></div>
+ </div>
+ <div class="card" style="margin-top:20px">
+  <p>We explored ways to make the real terminal accessible online, including SSH/Codespaces and server options. We ran into access and payment/account limitations and never got a working server in time.</p>
+  <p>So the real terminal stayed local. The hosted webpage became the thing we could submit.</p>
+ </div>
+ <div class="gif-grid">
+  <div class="gif">
+   <img src="https://media.giphy.com/media/J1Xhha92HUncHUA8IQ/giphy.gif" alt="Connection lost GIF">
+   <div class="inside"><span class="tag">DEPLOYMENT BOSS</span><div>When the code works but there is nowhere to run it.</div><a href="https://giphy.com/gifs/PersonaJourney-server-down-error-offline-J1Xhha92HUncHUA8IQ" target="_blank" rel="noopener">GIF source ↗</a></div>
+  </div>
+  <div class="gif">
+   <img src="https://media.giphy.com/media/lZEI1M16IRejsktBgS/giphy.gif" alt="Confused GIF">
+   <div class="inside"><span class="tag">8 AM ENERGY</span><div>Also approximately how we started the day.</div><a href="https://giphy.com/gifs/originals-lZEI1M16IRejsktBgS" target="_blank" rel="noopener">GIF source ↗</a></div>
+  </div>
+ </div>
+</div>
+</section>
+
+<section id="demo">
+<div class="wrap">
+ <div class="kicker">The evidence</div>
+ <h2>Here is what actually worked.</h2>
+ <p class="lead">The screenshots below are from the real project. No polished fake demo — these are the terminal states we captured while testing.</p>
+ <div class="media-grid">
+  <figure class="media"><img src="pookie_journal_assets/221361.jpg" alt="Pookie Terminal screenshot"><figcaption class="caption">Pookie Terminal — real terminal interface.</figcaption></figure>
+  <figure class="media"><img src="pookie_journal_assets/221363.jpg" alt="Pookie Terminal delete screenshot"><figcaption class="caption">The <code>delete</code> action producing the opposite behaviour.</figcaption></figure>
+  <figure class="media"><img src="pookie_journal_assets/221364.jpg" alt="Pookie Terminal screenshot"><figcaption class="caption">Normal navigation and filesystem interaction.</figcaption></figure>
+  <figure class="media"><img src="pookie_journal_assets/221366.jpg" alt="Pookie Terminal screenshot"><figcaption class="caption">Another final-state terminal test.</figcaption></figure>
+  <figure class="media"><img src="pookie_journal_assets/221368.jpg" alt="Pookie Terminal screenshot"><figcaption class="caption">Clean final terminal view.</figcaption></figure>
+ </div>
+</div>
+</section>
+
+<section>
+<div class="wrap">
+ <div class="kicker">6–7 PM — PRESENTATION</div>
+ <h2>The projector chose violence.</h2>
+ <div class="card">
+  <p>When it was time to present, connecting the laptop to the projector didn't give us the terminal. The projector showed the wallpaper/background instead.</p>
+  <p>So the presentation became more hands-on: we brought the laptop closer and showed the project directly.</p>
+ </div>
+ <div class="gif" style="max-width:560px;margin:24px auto 0">
+  <img src="https://media.giphy.com/media/jc8kwq8kNKl8vuHVAr/giphy.gif" alt="Projector GIF">
+  <div class="inside"><span class="tag">PRESENTATION MODE</span><div>The one piece of hardware we did not code.</div><a href="https://giphy.com/gifs/projector-jc8kwq8kNKl8vuHVAr" target="_blank" rel="noopener">GIF source ↗</a></div>
+ </div>
+</div>
+</section>
+
+<section id="team">
+<div class="wrap">
+ <div class="kicker">The two-person team</div>
+ <h2>Who did what?</h2>
+ <div class="split">
+  <div class="fact"><strong>Thejas V</strong><span>Worked mainly on the actual terminal implementation and Python side, including command behaviour and getting the real terminal running.</span></div>
+  <div class="fact"><strong>Sreelakshmi</strong><span>Focused mainly on the UI/UX and helped shape the visual direction of Pookie Terminal.</span></div>
+ </div>
+</div>
+</section>
+
+<section>
+<div class="wrap">
+ <div class="kicker">What we learned</div>
+ <h2>A useless project taught us useful things.</h2>
+ <div class="card">
+  <ul>
+   <li>A terminal-looking webpage and a real terminal are two very different problems.</li>
+   <li>Keeping navigation normal while reversing actions made the concept much more usable.</li>
+   <li>Terminal output is not just text — control sequences and formatting have to be handled correctly.</li>
+   <li>Getting software to work locally is only part of the problem. Making it accessible online can be a completely separate challenge.</li>
+   <li>Presentation hardware can fail even when the software is working.</li>
+  </ul>
+ </div>
+ <div class="quote">We started the day without an idea. We ended it with a terminal that actively disagrees with us.</div>
+</div>
+</section>
+
+<footer>
+ <div class="wrap">
+  <div class="kicker">The code</div>
+  <h2>Want to see the actual project?</h2>
+  <a class="repo" href="https://github.com/vthejas44-rgb/useless_project_temp" target="_blank" rel="noopener">↗ Open the GitHub repository</a>
+  <p style="margin-top:28px">Pookie Terminal · Project Journal · Built during a very long day.</p>
+  <p style="font-size:12px">GIFs are externally hosted and linked to their GIPHY source pages. Project screenshots are original project captures.</p>
+ </div>
+</footer>
+</body>
 </html>
